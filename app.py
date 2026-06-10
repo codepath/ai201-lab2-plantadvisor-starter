@@ -34,7 +34,15 @@ def chat(message: str, history: list) -> str:
 # UI
 # ──────────────────────────────────────────────
 
-with gr.Blocks(title="Plant Advisor") as demo:
+with gr.Blocks(
+    title="Plant Advisor",
+    theme=gr.themes.Default(
+        primary_hue="green",
+        secondary_hue="emerald",
+        neutral_hue="stone",
+        font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
+    ),
+) as demo:
 
     gr.Markdown(
         """
@@ -48,14 +56,15 @@ with gr.Blocks(title="Plant Advisor") as demo:
         with gr.Column(scale=1, min_width=220):
             gr.Markdown("### 🪴 Plants in My Database")
             gr.Markdown(
-                "\n".join(f"- {name}" for name in _plant_names),
+                "
+".join(f"- {name}" for name in _plant_names),
                 label="Plants",
             )
             gr.Markdown("---")
             gr.Markdown(
                 "**Tip:** Ask about any plant above by its common name, "
                 "scientific name, or nickname (e.g., *devil's ivy*, "
-                "*mother-in-law's tongue*, *swiss cheese plant*)."
+                "*mother-in-law's tongue*, *swiss cheese plant*).",
             )
 
         # Chat
@@ -79,11 +88,4 @@ with gr.Blocks(title="Plant Advisor") as demo:
             )
 
 if __name__ == "__main__":
-    demo.launch(
-        theme=gr.themes.Default(
-            primary_hue="green",
-            secondary_hue="emerald",
-            neutral_hue="stone",
-            font=[gr.themes.GoogleFont("Inter"), "sans-serif"],
-        )
-    )
+    demo.launch()
