@@ -1,7 +1,7 @@
 import json
 from groq import Groq
 from config import GROQ_API_KEY, LLM_MODEL, MAX_TOOL_ROUNDS
-from tools import lookup_plant, get_seasonal_conditions
+from tools import lookup_plant, get_seasonal_conditions, get_plant_list
 
 _client = Groq(api_key=GROQ_API_KEY)
 
@@ -58,6 +58,24 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_plant_list",
+            "description": (
+                "List every plant in the care database with its difficulty level. "
+                "Use this when the user asks what plants you know about, wants a "
+                "recommendation such as a good beginner plant, or asks a question "
+                "that requires browsing the catalog rather than looking up one "
+                "specific plant by name."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
 
 # ──────────────────────────────────────────────
@@ -68,18 +86,22 @@ SYSTEM_PROMPT = (
     "You are a knowledgeable and friendly plant care advisor. "
     "Help users care for their houseplants by looking up specific plant information "
     "and current seasonal conditions using your available tools.\n\n"
-    "Always use your tools to look up plant-specific information before answering — "
+    "Always use your tools to look up plant-specific information before answering, "
     "don't rely on your general knowledge alone. If a plant isn't in your database, "
     "say so clearly and offer general guidance based on what the user describes.\n\n"
-    "When lookup_plant returns found: False, do not invent specific care "
+    "When lookup_plant() returns found: False, do not invent specific care "
     "instructions (no precise watering schedules, temperatures, or fertilizing "
     "intervals) as if you had real data. Acknowledge the plant isn't in your "
     "database, offer general principles for that type of plant, point the user "
     "to a reliable source such as a local nursery or horticultural society, and "
     "optionally suggest a similar plant that is in your database.\n\n"
+    "Use the conversation history as memory: if the user mentioned a plant "
+    "earlier in the conversation, connect new advice back to it (e.g., 'since "
+    "you have a pothos, these watering tips apply to it too').\n\n"
     "Keep your advice practical and specific. Cite the source of your information "
     "when you have it (e.g., 'According to the care data for your monstera...')."
 )
+# chunked sys prompt lol
 
 # ──────────────────────────────────────────────
 # Tool dispatch
@@ -100,6 +122,8 @@ def dispatch_tool(tool_name: str, tool_args: dict) -> str:
         result = lookup_plant(tool_args["plant_name"])
     elif tool_name == "get_seasonal_conditions":
         result = get_seasonal_conditions(tool_args.get("season"))
+    elif tool_name == "get_plant_list":
+        result = get_plant_list()
     else:
         result = {"error": f"Unknown tool: {tool_name}"}
     print(f"  ← Result: {json.dumps(result)[:120]}{'...' if len(json.dumps(result)) > 120 else ''}")
@@ -111,9 +135,32 @@ def dispatch_tool(tool_name: str, tool_args: dict) -> str:
 # ──────────────────────────────────────────────
 
 FALLBACK_MESSAGE = (
-    "🌱 Sorry — I ran into a problem putting your answer together. "
+    "🌱 Sorry, I ran into a problem putting your answer together. :( "
     "Please try asking again."
 )
+
+
+def _create_completion(messages: list, use_tools: bool = True, retries: int = 2):
+    """
+    Call the chat completions API, retrying on Groq's tool_use_failed error.
+
+    Under multi-call pressure llama-3.3-70b sometimes emits malformed
+    function-call syntax, which Groq rejects with a 400 (code
+    "tool_use_failed"). That's a transient generation failure, so retry it;
+    re-raise anything else immediately.
+    """
+    kwargs = {"model": LLM_MODEL, "messages": messages}
+    if use_tools:
+        kwargs["tools"] = TOOL_DEFINITIONS
+        kwargs["tool_choice"] = "auto"
+    for attempt in range(retries + 1):
+        try:
+            return _client.chat.completions.create(**kwargs)
+        except Exception as exc:
+            if "tool_use_failed" in str(exc) and attempt < retries:
+                print(f"  ↻ Malformed tool call from model — retry {attempt + 1}/{retries}")
+                continue
+            raise
 
 
 def run_agent(user_message: str, history: list) -> str:
@@ -134,12 +181,7 @@ def run_agent(user_message: str, history: list) -> str:
 
     try:
         for _round in range(MAX_TOOL_ROUNDS):
-            response = _client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=messages,
-                tools=TOOL_DEFINITIONS,
-                tool_choice="auto",
-            )
+            response = _create_completion(messages)
             assistant_message = response.choices[0].message
 
             if not assistant_message.tool_calls:
@@ -168,10 +210,7 @@ def run_agent(user_message: str, history: list) -> str:
 
         # MAX_TOOL_ROUNDS reached with the LLM still requesting tools. Call one
         # last time without tools so it must answer from the context it has.
-        response = _client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=messages,
-        )
+        response = _create_completion(messages, use_tools=False)
         return response.choices[0].message.content or FALLBACK_MESSAGE
 
     except Exception as exc:

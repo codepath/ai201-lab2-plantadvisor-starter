@@ -145,6 +145,11 @@ Edge cases handled: empty content on a no-tool-call response (the `or
 fallback` guard), arguments arriving as JSON "null" for no-arg tools
 (normalized to {} before dispatch), and any Groq API exception (caught;
 returns a friendly error message instead of crashing the Gradio app).
+
+Stress-testing added one more: under multi-call pressure the model itself
+sometimes emits malformed function-call syntax, which Groq rejects with a
+400 ("tool_use_failed"). That's a transient generation failure, so
+_create_completion() retries it up to twice before giving up.
 ```
 
 ---
@@ -206,4 +211,31 @@ serializes it correctly — mixing the two felt wrong but is the intended
 pattern. Also, for a no-argument tool call the arguments field is the JSON
 string "null", and json.loads("null") gives None rather than {} — without
 normalizing, dispatch would crash on .get().
+```
+
+**Optional challenge — stress test (MAX_TOOL_ROUNDS):**
+
+```
+Asked for a 5-plant × 4-season watering comparison with instructions to look
+everything up individually. First attempt: the model failed before the loop
+limit did — under multi-call pressure llama-3.3-70b emitted malformed
+function-call syntax and Groq rejected the request with a 400
+("tool_use_failed"), so the agent returned the fallback message. After
+adding the _create_completion() retry, the same query made 9 tool calls
+(5 lookup_plant + 4 get_seasonal_conditions, batched several per round),
+stayed within MAX_TOOL_ROUNDS, and produced a complete comparison. If the
+limit is ever hit, run_agent makes one final call WITHOUT tools so the model
+must answer from gathered context — it degrades to a partial answer rather
+than an error.
+```
+
+**Optional challenge — conversation memory:**
+
+```
+No new state was needed: the full Gradio history is already replayed into
+the messages list every turn, so the LLM can see every plant the user has
+mentioned. A system-prompt sentence tells it to use that history as memory.
+Verified: with a pothos question in history, the generic follow-up "any
+general tips for keeping houseplants happy in summer?" came back with
+"...Since you have a pothos, these summer care tips apply to it as well."
 ```

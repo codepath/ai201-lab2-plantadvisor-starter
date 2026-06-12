@@ -73,6 +73,24 @@ def lookup_plant(plant_name: str) -> dict:
     }
 
 
+def get_plant_list() -> dict:
+    """
+    Return the name and difficulty level of every plant in the database.
+
+    Optional challenge tool: lets the agent answer catalog-style questions
+    ("what plants do you know about?", "what's a good beginner plant?") that
+    lookup_plant can't, since it only searches by a specific name.
+    """
+    plants = sorted(
+        (
+            {"name": p["display_name"], "difficulty": p["difficulty"]}
+            for p in _plant_db.values()
+        ),
+        key=lambda p: p["name"],
+    )
+    return {"count": len(plants), "plants": plants}
+
+
 def get_seasonal_conditions(season: str | None = None) -> dict:
     """
     Return current seasonal care context for houseplants.
