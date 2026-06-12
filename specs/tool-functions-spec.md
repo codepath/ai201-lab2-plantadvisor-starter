@@ -73,7 +73,11 @@ the broadest net, so they go last.
 *Aliases are stored as a list of strings. How will you check if the normalized input matches any alias in the list? Write your approach in pseudocode or plain English.*
 
 ```
-[your answer here]
+For each plant in _plant_db, iterate through its aliases list and compare
+each alias lowercased against the normalized input. If any alias matches,
+return that plant. A linear scan is fine at 15 plants; if the database grew
+to thousands, build a precomputed dict mapping every lowercased key, name,
+and alias to its plant slug for O(1) lookups.
 ```
 
 ---
@@ -83,8 +87,12 @@ the broadest net, so they go last.
 *When a plant isn't found, the agent will read your message and use it to decide what to tell the user. Write the exact string you'll return — make it useful to the agent, not just to a human reading logs.*
 
 ```
-[your answer here]
+"Plant '{normalized}' not found in database. Please check the name and try again. You can search by common name, scientific name, or known aliases. If you're unsure, try a different plant or ask for help with plant names."
 ```
+
+*(Refinement during implementation: dropped the original "the data referenced is
+located in data/plants.json" sentence — the LLM reads this message and could echo
+an internal file path to the user, which isn't actionable for them.)*
 
 ---
 
@@ -94,17 +102,22 @@ the broadest net, so they go last.
 
 **Test: does `"devil's ivy"` return the pothos entry?**
 ```
-[yes / no — if no, describe what happened]
+yes — matched via the aliases tier, returns {"found": True, "plant": {...Pothos...}}
 ```
 
 **Test: does `"SNAKE PLANT"` return the snake plant entry?**
 ```
-[yes / no — if no, describe what happened]
+yes — lowercased to "snake plant", matched via the display-name tier
+(the direct key tier misses it because the db key is "snake_plant" with an underscore)
 ```
 
 **One edge case you discovered while implementing:**
 ```
-[your answer here]
+Typographic (curly) apostrophes: phone keyboards auto-insert ’ instead of ',
+so "devil’s ivy" failed the alias match against "devil's ivy" in plants.json.
+Fixed by replacing ’ with ' during input normalization. Also observed that
+"zz plant" (space) misses the direct key "zz_plant" but is caught by the
+display-name tier — the multi-tier search order covers the slug/space mismatch.
 ```
 
 ---
@@ -186,12 +199,12 @@ The full season dict from `_season_data`, plus a `detected_season` boolean. Exam
 
 **Test: does calling with `season=None` return the correct season for the current month?**
 ```
-Current month: [month]
-Expected season: [season]
-Returned season: [season]
+Current month: June
+Expected season: summer
+Returned season: Summer (with "detected_season": True)
 ```
 
 **Test: does calling with `season="winter"` return winter data regardless of the current month?**
 ```
-[yes / no]
+yes — returns the Winter dict with "detected_season": False even though it's June
 ```
