@@ -104,32 +104,70 @@ def dispatch_tool(tool_name: str, tool_args: dict) -> str:
 # Agent loop
 # ──────────────────────────────────────────────
 
+FALLBACK_MESSAGE = (
+    "🌱 Sorry — I ran into a problem putting your answer together. "
+    "Please try asking again."
+)
+
+
 def run_agent(user_message: str, history: list) -> str:
     """
     Run the plant care agent for one user turn and return its response.
 
-    TODO — Milestone 2:
-
-    The agent loop follows a specific pattern that you'll implement here. Read
-    specs/agent-loop-spec.md carefully before writing any code — understand the
-    full loop before implementing any part of it.
-
-    The loop works like this:
-      1. Build a messages list: system prompt + conversation history + new user message
-      2. Call the LLM with messages and TOOL_DEFINITIONS
-      3. If the response contains tool_calls:
-           a. Append the assistant message (with tool_calls) to messages
-           b. For each tool call: execute via dispatch_tool(), append the result
-           c. Call the LLM again with the updated messages
-           d. Repeat until no more tool_calls (or MAX_TOOL_ROUNDS is reached)
-      4. Return the final text response
-
-    Key details to get right:
-      - The assistant message must be appended BEFORE tool results
-      - Tool result messages use role="tool" with a tool_call_id field
-      - Append the assistant's message object directly (not just its content)
-      - The history format from Gradio: list of {"role": ..., "content": ...} dicts
-
-    Before writing code, complete specs/agent-loop-spec.md.
+    Implements the loop described in specs/agent-loop-spec.md:
+    build messages (system prompt + history + new user message), call the LLM
+    with the tool definitions, execute any requested tools, feed results back,
+    and repeat until the LLM answers in text or MAX_TOOL_ROUNDS is reached.
     """
-    return "🌱 Agent not yet implemented. Complete Milestone 2 to activate the Plant Advisor."
+    # System prompt + replayed history + the new user message. Gradio history
+    # dicts may carry extra keys (e.g. metadata) — copy only role and content.
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        for _round in range(MAX_TOOL_ROUNDS):
+            response = _client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
+                tools=TOOL_DEFINITIONS,
+                tool_choice="auto",
+            )
+            assistant_message = response.choices[0].message
+
+            if not assistant_message.tool_calls:
+                # No tool calls — the LLM has a final answer
+                return assistant_message.content or FALLBACK_MESSAGE
+
+            # The assistant message must be appended BEFORE its tool results so
+            # each tool_call_id can be matched back to the call that made it.
+            messages.append(assistant_message)
+
+            for tool_call in assistant_message.tool_calls:
+                tool_name = tool_call.function.name
+                raw_args = tool_call.function.arguments
+                # No-arg tool calls may arrive as the JSON string "null",
+                # which json.loads turns into None rather than {}.
+                tool_args = json.loads(raw_args) if raw_args else {}
+                if not isinstance(tool_args, dict):
+                    tool_args = {}
+                tool_result = dispatch_tool(tool_name, tool_args)
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_result,
+                })
+
+        # MAX_TOOL_ROUNDS reached with the LLM still requesting tools. Call one
+        # last time without tools so it must answer from the context it has.
+        response = _client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=messages,
+        )
+        return response.choices[0].message.content or FALLBACK_MESSAGE
+
+    except Exception as exc:
+        print(f"  ✗ Agent error: {exc}")
+        return FALLBACK_MESSAGE
