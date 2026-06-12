@@ -80,17 +80,22 @@ with gr.Blocks(
         with gr.Column(scale=3):
             chatbot = gr.ChatInterface(
                 fn=chat,
+                type="messages",
                 examples=EXAMPLE_QUESTIONS,
+                save_history=True,
                 chatbot=gr.Chatbot(
+                    type="messages",
                     height=520,
                     placeholder="<em>Ask me about your plants...</em>",
                     show_label=False,
+                    show_copy_button=True,
                 ),
                 textbox=gr.Textbox(
                     placeholder="e.g. How often should I water my monstera?",
                     show_label=False,
                     scale=7,
                     submit_btn="Ask",
+                    autofocus=True,
                 ),
             )
 
