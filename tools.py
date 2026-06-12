@@ -57,14 +57,18 @@ def lookup_plant(plant_name: str) -> dict:
         if normalized in [alias.lower() for alias in plant["aliases"]]:
             return {"found": True, "plant": plant}
 
+    available = ", ".join(sorted(p["display_name"] for p in _plant_db.values()))
     return {
         "found": False,
         "name": normalized,
         "message": (
-            f"Plant '{normalized}' not found in database. "
-            "Please check the name and try again. You can search by common name, "
-            "scientific name, or known aliases. If you're unsure, try a different "
-            "plant or ask for help with plant names."
+            f"No plant matching '{normalized}' found in the database. "
+            "Do not invent specific care data (watering schedules, exact "
+            "temperatures, fertilizing intervals) for this plant. Acknowledge "
+            "the gap, offer general care principles for its broader plant type "
+            "if the user's description makes that clear, and suggest a detailed "
+            "source for specifics. If helpful, mention similar plants that ARE "
+            f"in the database: {available}."
         ),
     }
 

@@ -71,6 +71,12 @@ SYSTEM_PROMPT = (
     "Always use your tools to look up plant-specific information before answering — "
     "don't rely on your general knowledge alone. If a plant isn't in your database, "
     "say so clearly and offer general guidance based on what the user describes.\n\n"
+    "When lookup_plant returns found: False, do not invent specific care "
+    "instructions (no precise watering schedules, temperatures, or fertilizing "
+    "intervals) as if you had real data. Acknowledge the plant isn't in your "
+    "database, offer general principles for that type of plant, point the user "
+    "to a reliable source such as a local nursery or horticultural society, and "
+    "optionally suggest a similar plant that is in your database.\n\n"
     "Keep your advice practical and specific. Cite the source of your information "
     "when you have it (e.g., 'According to the care data for your monstera...')."
 )

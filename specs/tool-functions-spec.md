@@ -87,12 +87,24 @@ and alias to its plant slug for O(1) lookups.
 *When a plant isn't found, the agent will read your message and use it to decide what to tell the user. Write the exact string you'll return — make it useful to the agent, not just to a human reading logs.*
 
 ```
-"Plant '{normalized}' not found in database. Please check the name and try again. You can search by common name, scientific name, or known aliases. If you're unsure, try a different plant or ask for help with plant names."
+"No plant matching '{normalized}' found in the database. Do not invent specific
+care data (watering schedules, exact temperatures, fertilizing intervals) for
+this plant. Acknowledge the gap, offer general care principles for its broader
+plant type if the user's description makes that clear, and suggest a detailed
+source for specifics. If helpful, mention similar plants that ARE in the
+database: {comma-separated display names}."
 ```
 
-*(Refinement during implementation: dropped the original "the data referenced is
-located in data/plants.json" sentence — the LLM reads this message and could echo
-an internal file path to the user, which isn't actionable for them.)*
+*(Milestone 1 refinement: dropped the original "the data referenced is located
+in data/plants.json" sentence — the LLM reads this message and could echo an
+internal file path to the user, which isn't actionable for them.)*
+
+*(Milestone 3 refinement: the first version just said the plant wasn't found
+and suggested retrying. Observed behavior: the agent acknowledged the gap but
+still invented specifics from training data ("repot every 2-3 years"). The
+message now steers the LLM directly — no invented specifics, offer general
+principles, and list the plants that ARE available so it can suggest
+alternatives. Paired with a matching system-prompt instruction in agent.py.)*
 
 ---
 

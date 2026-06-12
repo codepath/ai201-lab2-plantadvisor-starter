@@ -3,12 +3,17 @@ import os
 import gradio as gr
 from config import DATA_PATH
 from agent import run_agent
+from tools import get_seasonal_conditions
 
 # Load plant list for the sidebar
 with open(os.path.join(DATA_PATH, "plants.json"), encoding="utf-8") as f:
     _plants = json.load(f)
 
 _plant_names = sorted(p["display_name"] for p in _plants.values())
+
+# Auto-detected season shown in the sidebar so users know what seasonal
+# context the advisor is working with.
+_season = get_seasonal_conditions()
 
 EXAMPLE_QUESTIONS = [
     "How do I care for my pothos?",
@@ -58,6 +63,11 @@ with gr.Blocks(
             gr.Markdown(
                 "\n".join(f"- {name}" for name in _plant_names),
                 label="Plants",
+            )
+            gr.Markdown("---")
+            gr.Markdown(
+                f"**🗓️ Current season:** {_season['name']}\n\n"
+                f"*{_season['general_tip']}*"
             )
             gr.Markdown("---")
             gr.Markdown(
