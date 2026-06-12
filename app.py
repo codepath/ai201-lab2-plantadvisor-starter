@@ -12,8 +12,15 @@ with open(os.path.join(DATA_PATH, "plants.json"), encoding="utf-8") as f:
 _plant_names = sorted(p["display_name"] for p in _plants.values())
 
 # Auto-detected season shown in the sidebar so users know what seasonal
-# context the advisor is working with.
-_season = get_seasonal_conditions()
+# context the advisor is working with. Defined as a callable so Gradio
+# re-evaluates it on every page load — a static value would go stale if the
+# server runs across a season boundary.
+def _season_panel() -> str:
+    season = get_seasonal_conditions()
+    return (
+        f"**🗓️ Current season:** {season['name']}\n\n"
+        f"*{season['general_tip']}*"
+    )
 
 EXAMPLE_QUESTIONS = [
     "How do I care for my pothos?",
@@ -65,10 +72,7 @@ with gr.Blocks(
                 label="Plants",
             )
             gr.Markdown("---")
-            gr.Markdown(
-                f"**🗓️ Current season:** {_season['name']}\n\n"
-                f"*{_season['general_tip']}*"
-            )
+            gr.Markdown(_season_panel)
             gr.Markdown("---")
             gr.Markdown(
                 "**Tip:** Ask about any plant above by its common name, "
