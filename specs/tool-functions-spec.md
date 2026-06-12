@@ -1,13 +1,13 @@
 # Spec: Tool Functions
 
 **File:** `tools.py`
-**Status:** `get_seasonal_conditions` — Pre-implemented, read through. `lookup_plant` — complete spec fields before implementing.
+**Status:** `get_seasonal_conditions` — Pre-implemented, read through. `lookup_plant` — implemented (Milestone 1). `get_plant_list` — added for the optional challenge.
 
 ---
 
 ## Purpose
 
-These two functions are the tools the agent can call. They retrieve structured data from the local plant database and seasonal data files and return it to the agent loop, which passes it to the LLM as context for generating a response.
+These three functions are the tools the agent can call. They retrieve structured data from the local plant database and seasonal data files and return it to the agent loop, which passes it to the LLM as context for generating a response.
 
 ---
 
