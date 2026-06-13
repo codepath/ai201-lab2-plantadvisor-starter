@@ -36,7 +36,8 @@ def lookup_plant(plant_name: str) -> dict:
     Your implementation should handle all three:
       1. Direct key match (e.g., "pothos" → finds "pothos")
       2. Display name match (e.g., "Pothos" → finds "pothos")
-      3. Alias match (e.g., "devil's ivy" → finds "pothos")
+      3. Alias match (e.g.
+      , "devil's ivy" → finds "pothos")
 
     All matching should be case-insensitive. Strip whitespace from the input.
 
@@ -52,10 +53,30 @@ def lookup_plant(plant_name: str) -> dict:
 
     Before writing code, complete the lookup_plant section of specs/tool-functions-spec.md.
     """
+    normalized = plant_name.strip().lower()
+
+    for plant in _plant_db.values():
+        if plant.get("display_name", "").strip().lower() == normalized:
+            return {"found": True, "plant": plant}
+        if plant.get("scientific_name", "").strip().lower() == normalized:
+            return {"found": True, "plant": plant}
+        if any(normalized == a.strip().lower() for a in plant.get("aliases", [])):
+            return {"found": True, "plant": plant}
+
+    available = ", ".join(p["display_name"] for p in _plant_db.values())
     return {
         "found": False,
-        "name": plant_name,
-        "message": "Plant lookup not yet implemented. Complete Milestone 1.",
+        "name": normalized,
+        "message": (
+            f'"{normalized}" is not in the plant database. This lookup already '
+            f"checked display names, scientific names, and aliases, so do not "
+            f"retry with another name — treat the plant as unavailable. Tell the "
+            f"user it isn't in the database, then offer general care guidance "
+            f"based on what they describe, clearly labeled as general (not "
+            f"database-backed) advice. Plants with full care data: {available}. "
+            f"If their plant closely matches one of these, suggest it as a "
+            f"possible match."
+        ),
     }
 
 

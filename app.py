@@ -72,6 +72,7 @@ with gr.Blocks(
                 fn=chat,
                 examples=EXAMPLE_QUESTIONS,
                 chatbot=gr.Chatbot(
+                    type="messages",
                     height=520,
                     placeholder="<em>Ask me about your plants...</em>",
                     show_label=False,

@@ -128,19 +128,74 @@ for tool_call in assistant_message.tool_calls:
 
 *The loop should stop when: (a) the LLM returns a response with no tool calls, OR (b) the MAX_TOOL_ROUNDS limit is reached. Describe how you will detect each condition and what you will return in each case.*
 
+These are two different *exits* from the loop, not two checks side by side. The
+function returns a `str` (the final text), never the messages list.
+
+Failure modes this plan defends against:
+- **Loop forever** — impossible: bounded by `range(MAX_TOOL_ROUNDS)`, not `while True`. No counter to forget to increment.
+- **Empty return** — both exits guard `content` with `or FALLBACK`; a no-tool-call message can still have `content == None`.
+- **Exception** — the LLM call and per-tool-call arg parsing are wrapped, so an API error, malformed tool-call JSON, or missing arg degrades to an error result / fallback instead of crashing the turn.
+
 ```
-[your answer here]
+FALLBACK = "Sorry — I couldn't finish that request. Please try rephrasing."
+
+try:
+    for round_num in range(MAX_TOOL_ROUNDS):
+        response = client.chat.completions.create(
+            model=LLM_MODEL, messages=messages,
+            tools=TOOL_DEFINITIONS, tool_choice="auto",
+        )
+        assistant_message = response.choices[0].message
+
+        # Condition (a): no tool calls → the model has its final answer.
+        if not assistant_message.tool_calls:
+            return assistant_message.content or FALLBACK
+
+        # Otherwise append the assistant message + run the tools, then loop again.
+        messages.append(assistant_message)
+        for tool_call in assistant_message.tool_calls:
+            try:
+                raw_args = tool_call.function.arguments
+                tool_args = json.loads(raw_args) if raw_args else {}
+                tool_result = dispatch_tool(tool_call.function.name, tool_args)
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                tool_result = json.dumps({"error": f"Bad tool call: {e}"})
+            messages.append({
+                "role": "tool", "tool_call_id": tool_call.id, "content": tool_result,
+            })
+
+    # Condition (b): loop ran out → MAX_TOOL_ROUNDS used up and the model STILL
+    # wanted tools. Force one text-only answer; its content may be empty, so guard.
+    final = client.chat.completions.create(
+        model=LLM_MODEL, messages=messages, tool_choice="none",
+    )
+    return final.choices[0].message.content or FALLBACK
+
+except Exception:
+    # Any API/network/parse error: degrade to a fallback, never raise into the UI.
+    return FALLBACK
 ```
 
+- **(a)** detected *inside* the loop via `not assistant_message.tool_calls`; return `assistant_message.content or FALLBACK`.
+- **(b)** detected by the `for` loop *finishing*. The last message still wanted tools, so its `content` is usually empty — don't return it. One final `tool_choice="none"` call makes the model summarize as text; `or FALLBACK` guarantees a non-empty return.
 ---
 
 ### Extracting the final text response
 
 *Once the loop exits because there are no more tool calls, how do you extract the text content from the response object? What field holds the string you should return?*
 
+The text lives at `response.choices[0].message.content` — the same `assistant_message`
+object used to check `tool_calls`, so once `tool_calls` is falsy, read `.content` off it.
+
+```python
+assistant_message = response.choices[0].message
+return assistant_message.content or FALLBACK
 ```
-[your answer here]
-```
+
+`content` is the assistant's text reply (a `str`). It can be `None` — notably when
+`tool_calls` is present (the model "spoke" only by requesting tools). On the no-tool-call
+exit it's normally a real string, but guard with `or FALLBACK` anyway, because the API
+can return an empty/`None` content on a stop, and the contract forbids returning empty.
 
 ---
 

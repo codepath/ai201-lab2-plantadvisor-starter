@@ -69,8 +69,15 @@ SYSTEM_PROMPT = (
     "Help users care for their houseplants by looking up specific plant information "
     "and current seasonal conditions using your available tools.\n\n"
     "Always use your tools to look up plant-specific information before answering — "
-    "don't rely on your general knowledge alone. If a plant isn't in your database, "
-    "say so clearly and offer general guidance based on what the user describes.\n\n"
+    "don't rely on your general knowledge alone.\n\n"
+    "When a plant isn't in your database, degrade gracefully — never dead-end the "
+    "user and never invent specifics as if they were data. Instead: (1) say plainly "
+    "that the plant isn't in your database, (2) offer the most useful general care "
+    "guidance you can from what the user describes (light, water, humidity, plant "
+    "type), explicitly labeled as general advice rather than database-backed, and "
+    "(3) point them to where they can find authoritative care data (e.g., a "
+    "horticultural society or a reputable plant-care reference). If their plant "
+    "resembles one in your database, offer that as a possible match.\n\n"
     "Keep your advice practical and specific. Cite the source of your information "
     "when you have it (e.g., 'According to the care data for your monstera...')."
 )
@@ -132,4 +139,54 @@ def run_agent(user_message: str, history: list) -> str:
 
     Before writing code, complete specs/agent-loop-spec.md.
     """
-    return "🌱 Agent not yet implemented. Complete Milestone 2 to activate the Plant Advisor."
+    FALLBACK = "Sorry — I couldn't finish that request. Please try rephrasing."
+
+    # Build the messages list: system prompt + replayed history + new user message.
+    # Copy only role/content from history — Gradio may add extra keys the API rejects.
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        for _ in range(MAX_TOOL_ROUNDS):
+            response = _client.chat.completions.create(
+                model=LLM_MODEL,
+                messages=messages,
+                tools=TOOL_DEFINITIONS,
+                tool_choice="auto",
+            )
+            assistant_message = response.choices[0].message
+
+            # Condition (a): no tool calls → the model has its final answer.
+            if not assistant_message.tool_calls:
+                return assistant_message.content or FALLBACK
+
+            # Tool calls requested: append the assistant message BEFORE any results,
+            # then execute each call and append its result as a "tool" message.
+            messages.append(assistant_message)
+            for tool_call in assistant_message.tool_calls:
+                try:
+                    raw_args = tool_call.function.arguments
+                    tool_args = json.loads(raw_args) if raw_args else {}
+                    tool_result = dispatch_tool(tool_call.function.name, tool_args)
+                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                    tool_result = json.dumps({"error": f"Bad tool call: {e}"})
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_result,
+                })
+
+        # Condition (b): MAX_TOOL_ROUNDS used up and the model still wanted tools.
+        # Force one text-only answer so the user gets a summary of what was gathered.
+        final = _client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=messages,
+            tool_choice="none",
+        )
+        return final.choices[0].message.content or FALLBACK
+
+    except Exception:
+        # Any API/network/parse error: degrade to a fallback, never raise into the UI.
+        return FALLBACK

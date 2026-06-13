@@ -73,7 +73,11 @@ the broadest net, so they go last.
 *Aliases are stored as a list of strings. How will you check if the normalized input matches any alias in the list? Write your approach in pseudocode or plain English.*
 
 ```
-[your answer here]
+normalized = plant_name.strip().lower()
+
+# Compare the normalized user input against each alias in a case-insensitive way.
+# This works even if the alias list contains uppercase letters or mixed casing.
+match = any(normalized == alias.lower() for alias in plant["aliases"])
 ```
 
 ---
@@ -82,8 +86,11 @@ the broadest net, so they go last.
 
 *When a plant isn't found, the agent will read your message and use it to decide what to tell the user. Write the exact string you'll return — make it useful to the agent, not just to a human reading logs.*
 
-```
-[your answer here]
+Tell it the plant isn't in the database and list the plants 
+```python
+message = (
+    f'"{normalized}" isn\'t in the plant database. '"
+)
 ```
 
 ---
@@ -94,17 +101,17 @@ the broadest net, so they go last.
 
 **Test: does `"devil's ivy"` return the pothos entry?**
 ```
-[yes / no — if no, describe what happened]
+[yes]
 ```
 
 **Test: does `"SNAKE PLANT"` return the snake plant entry?**
 ```
-[yes / no — if no, describe what happened]
+[yes]
 ```
 
 **One edge case you discovered while implementing:**
 ```
-[your answer here]
+[Returned Not Found for devil's ivy" with a curly apostrophe (’) or dropped]
 ```
 
 ---
@@ -182,16 +189,15 @@ The full season dict from `_season_data`, plus a `detected_season` boolean. Exam
 
 #### Implementation Notes
 
-*Fill this in after testing.*
 
 **Test: does calling with `season=None` return the correct season for the current month?**
 ```
-Current month: [month]
-Expected season: [season]
-Returned season: [season]
+Current month: [June]
+Expected season: [Summer]
+Returned season: [Summer]
 ```
 
 **Test: does calling with `season="winter"` return winter data regardless of the current month?**
 ```
-[yes / no]
+[yes]
 ```
