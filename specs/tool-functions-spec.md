@@ -73,7 +73,14 @@ the broadest net, so they go last.
 *Aliases are stored as a list of strings. How will you check if the normalized input matches any alias in the list? Write your approach in pseudocode or plain English.*
 
 ```
-[your answer here]
+Lowercase every alias in the plant's "aliases" list and check whether the
+normalized input is in that lowercased collection (a generator expression
+fed to `in`):
+
+    if normalized in (alias.lower() for alias in plant["aliases"]):
+        return found
+
+This avoids mutating the stored data and handles aliases of any casing.
 ```
 
 ---
@@ -83,7 +90,15 @@ the broadest net, so they go last.
 *When a plant isn't found, the agent will read your message and use it to decide what to tell the user. Write the exact string you'll return — make it useful to the agent, not just to a human reading logs.*
 
 ```
-[your answer here]
+"No plant matching '<normalized>' was found in the database. The database
+covers: <comma-separated list of display names>. Let the user know their
+plant isn't in the database and offer general care guidance based on what
+they've described."
+
+This gives the agent two things: confirmation that the lookup genuinely
+failed (so it doesn't pretend to have data it doesn't), and the list of
+plants that ARE available, in case the user's plant is in the database
+under a name/spelling the lookup didn't match.
 ```
 
 ---
@@ -94,17 +109,21 @@ the broadest net, so they go last.
 
 **Test: does `"devil's ivy"` return the pothos entry?**
 ```
-[yes / no — if no, describe what happened]
+yes — matches via the alias list ("devil's ivy" is an alias of "pothos").
 ```
 
 **Test: does `"SNAKE PLANT"` return the snake plant entry?**
 ```
-[yes / no — if no, describe what happened]
+yes — normalization (strip + lowercase) turns "  SNAKE PLANT  " into
+"snake plant", which matches the display name "Snake Plant" (lowercased).
 ```
 
 **One edge case you discovered while implementing:**
 ```
-[your answer here]
+The not-found message normalizes the input before echoing it back (e.g.
+"  Fake Plant  " -> "fake plant" in the "name" field). This is intentional —
+it shows the agent exactly what string was searched for, which matches what
+was actually compared against the database.
 ```
 
 ---
