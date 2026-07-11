@@ -70,11 +70,13 @@ with gr.Blocks(
         with gr.Column(scale=3):
             chatbot = gr.ChatInterface(
                 fn=chat,
+                type="messages",
                 examples=EXAMPLE_QUESTIONS,
                 chatbot=gr.Chatbot(
                     height=520,
                     placeholder="<em>Ask me about your plants...</em>",
                     show_label=False,
+                    type="messages",
                 ),
                 textbox=gr.Textbox(
                     placeholder="e.g. How often should I water my monstera?",
